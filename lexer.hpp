@@ -10,8 +10,47 @@ enum class TokenType {
 	// Literals
 	NUMBER,
 	STRING,
-	// Operators
+	// Operators (Assign)
+	EQUAL,
+	// Operators (Arithmetic)
+	PLUS, PLUS_EQ,
+	MINUS, MINUS_EQ,
+	ASTERISK, ASTERISK_EQ,
+	SLASH, SLASH_EQ,
+	PERCENT, PERCENT_EQ,
+	POWER, POWER_EQ,
+	INCREMENT,
+	DECREMENT,
+	// Operators (Bitwise)
+	AMPERSAND, AMPERSAND_EQ,
+	PIPE, PIPE_EQ,
+	CARET, CARET_EQ,
+	TILDE,
+	SHIFTL, SHIFTL_EQ,
+	SHIFTR, SHIFTR_EQ,
+	// Operators (Logic)
+	DOUBLE_AMPERSAND, DOUBLE_AMPERSAND_EQ,
+	DOUBLE_PIPE, DOUBLE_PIPE_EQ,
+	DOUBLE_CARET, DOUBLE_CARET_EQ,
+	BANG,
+	// Operators (Comparison)
+	EQUALITY,
+	INEQUALITY,
+	LESS,
+	GREATER,
+	LESS_EQ,
+	GREATER_EQ,
+	// Operators (Miscellaneous)
+	SEMICOLON,
+	DOT,
 	// Separators
+	LPAREN,
+	RPAREN,
+	LSQUARE,
+	RSQUARE,
+	LBRACE,
+	RBRACE,
+	COMMA,
 	// Special
 	UNKNOWN,
 	TOKEN_EOF,
@@ -34,9 +73,47 @@ std::unordered_set<std::string> keywords = {
 	"false",
 };
 
-std::unordered_set<char> separators = {
-	';','*'
+std::unordered_map<std::string, TokenType> symbolMap = {
+	// Assign
+	{ "=", TokenType::EQUAL },
+	// Arithmetic
+	{ "+", TokenType::PLUS }, { "+=", TokenType::PLUS_EQ },
+	{ "-", TokenType::MINUS }, { "-=", TokenType::MINUS_EQ },
+	{ "*", TokenType::ASTERISK }, { "*=", TokenType::ASTERISK_EQ },
+	{ "/", TokenType::SLASH }, { "/=", TokenType::SLASH_EQ },
+	{ "%", TokenType::PERCENT }, { "%=", TokenType::PERCENT_EQ },
+	{ "**", TokenType::POWER }, { "**=", TokenType::POWER_EQ },
+	{ "++", TokenType::INCREMENT },
+	{ "--", TokenType::DECREMENT },
+	// Bitwise
+	{ "&", TokenType::AMPERSAND }, { "&=", TokenType::AMPERSAND_EQ },
+	{ "|", TokenType::PIPE }, { "|=", TokenType::PIPE_EQ },
+	{ "^", TokenType::CARET }, { "^=", TokenType::CARET_EQ },
+	{ "~", TokenType::TILDE },
+	{ "<<", TokenType::SHIFTL }, { "<<=", TokenType::SHIFTL_EQ },
+	{ ">>", TokenType::SHIFTR }, { ">>=", TokenType::SHIFTR_EQ },
+	// Logic
+	{ "&&", TokenType::DOUBLE_AMPERSAND }, { "&&=", TokenType::DOUBLE_AMPERSAND_EQ },
+	{ "||", TokenType::DOUBLE_PIPE }, { "||=", TokenType::DOUBLE_PIPE_EQ },
+	{ "^^", TokenType::DOUBLE_CARET }, { "^^=", TokenType::DOUBLE_CARET_EQ },
+	// Comparison
+	{ "==", TokenType::EQUALITY }, { "!=", TokenType::INEQUALITY },
+	{ "<", TokenType::LESS }, { "<=", TokenType::LESS_EQ },
+	{ ">", TokenType::GREATER }, { ">=", TokenType::GREATER_EQ },
+	/* Terminator */ { ";", TokenType::SEMICOLON },
+	/* Property */ { ".", TokenType::DOT },
+	// Separators
+	{ "(", TokenType::LPAREN }, { ")", TokenType::RPAREN },
+	{ "[", TokenType::LSQUARE }, { "]", TokenType::RSQUARE },
+	{ "{", TokenType::LBRACE }, { "}", TokenType::RBRACE },
+	{ ",", TokenType::COMMA },
 };
+std::unordered_set<char> validSymbolStarters;
+void initialiseSymbolStarters() {
+	for (const auto& symbol : symbolMap) {
+		validSymbolStarters.insert(symbol.first[0]);
+	}
+}
 
 struct Token {
 	TokenType type;
@@ -59,15 +136,13 @@ struct SyntaxError {
 class Lexer {
 public:
 	Lexer(const std::string& filename, const std::string& source) : filename(filename), src(source), pos(0), line(1), col(1) {
-		std::stringstream ss(src);
-		std::string line;
-		while (std::getline(ss, line)) {
-			lines.push_back(line);
+		if (validSymbolStarters.empty()) {
+			initialiseSymbolStarters();
 		}
 	}
 	void logErrors();
+	inline char peek(int);
 	void skip();
-	char peek(int);
 	Token getKeywordOrIdentifier();
 	Token getNumber();
 	Token getString();
@@ -84,15 +159,27 @@ private:
 };
 
 void Lexer::logErrors() {
+	if (lines.empty()) {
+		std::stringstream ss(src);
+		std::string line;
+		while (std::getline(ss, line)) {
+			lines.push_back(line);
+		}
+	}
 	for (auto& error : syntaxErrors) {
 		std::cout << filename << ':' << error.line << ':' << error.col << ": ";
 		std::cout << "\033[1;31mSyntaxError:\033[0m " << error.message << '\n';
 		std::cout << error.line << "|" << lines[error.line - 1] << "\n";
 		std::cout << std::string(std::ceil(std::log10(error.line + 0.1)) + error.col, ' ') << "^\n";
 	}
-	if (syntaxErrors.size() != 0) {
+	if (!syntaxErrors.empty()) {
 		std::cout << syntaxErrors.size() << " errors generated.\n";
 	}
+}
+
+inline char Lexer::peek(int position) {
+	if (position >= src.size() || position < 0) return '\0';
+	return src[position];
 }
 
 // Skip whitespace and comments (does not return EOF)
@@ -151,7 +238,7 @@ void Lexer::skip() {
 						line++;
 						col = 1;
 					}
-					syntaxErrors.push_back(SyntaxError("Unclosed multi-line comment found", startLine, startCol));
+					syntaxErrors.push_back(SyntaxError("Unmatched '/*' found", startLine, startCol));
 					pos = src.size();
 					return; // Return EOF in nextToken()
 				}
@@ -160,11 +247,6 @@ void Lexer::skip() {
 		}
 		break; // No more skipping to be done
 	}
-}
-
-char Lexer::peek(int position) {
-	if (position >= src.size() || position < 0) return '\0';
-	return src[position];
 }
 
 Token Lexer::getKeywordOrIdentifier() {
@@ -268,8 +350,8 @@ Token Lexer::getNumber() {
 			}
 		} else if (!isDigitBased(c, base)) {
 			// An invalid digit was found, end token here
-			if (!isspace(c) && separators.count(c) == 0) {
-				syntaxErrors.push_back(SyntaxError("Invalid digit found in number literal", line, col));
+			if (!isspace(c) && !validSymbolStarters.count(c)) {
+				syntaxErrors.push_back(SyntaxError("Invalid digit found in number literal ('" + std::string(1, c) + "')", line, col));
 			}
 			break;
 		}
@@ -331,7 +413,7 @@ Token Lexer::getString() {
 						pos--; col--; // The last character will be eaten in the outer loop
 						break;
 					}
-					syntaxErrors.push_back(SyntaxError("Unknown escape sequence found inside string literal", line, col));
+					syntaxErrors.push_back(SyntaxError("Unknown escape sequence found inside string literal ('\\" + std::string(1, c) + "')", line, col));
 					val += c;
 					break;
 			}
@@ -360,20 +442,41 @@ Token Lexer::nextToken() {
 	if (pos >= src.size()) {
 		return Token(TokenType::TOKEN_EOF, "", line, col);
 	}
+	char c = src[pos];
 	// Check for keywords and identifiers
-	if (isalpha(src[pos]) || src[pos] == '_') {
+	if (isalpha(c) || c == '_') {
 		return getKeywordOrIdentifier();
 	}
 	// Check number literal
-	if (isdigit(src[pos]) || (src[pos] == '.' && isdigit(peek(pos + 1)))) {
+	if (isdigit(c) || (c == '.' && isdigit(peek(pos + 1)))) {
 		return getNumber();
 	}
 	// Check string literal
-	if (src[pos] == '"') {
+	if (c == '"') {
 		return getString();
 	}
-	// Check operator (TODO)
-	// Check separator (TODO)
+	// Handle unopened `*/`
+	if (c == '*' && peek(pos + 1) == '/') {
+		syntaxErrors.push_back(SyntaxError("Unmatched '*/' found", line, col));
+		Token t = Token(TokenType::UNKNOWN, src.substr(pos, 2), line, col);
+		pos += 2;
+		col += 2;
+		return t;
+	}
+	// Check symbol for operator and separator
+	int maxSymbolLen = std::min(3, static_cast<int>(src.size()) - pos);
+	// The largest symbol is 3 characters long
+	// Find the largest matching symbol with max `maxSymbolLen` characters
+	for (int len = maxSymbolLen; len >= 1; len--) {
+		std::string symbol = src.substr(pos, len);
+		if (symbolMap.count(symbol)) {
+			int startCol = col;
+			pos += len;
+			col += len;
+			return Token(symbolMap[symbol.data()], "", line, startCol);
+		}
+	}
+	// Unknown token
 	syntaxErrors.push_back(SyntaxError("Unknown token found", line, col));
 	return Token(TokenType::UNKNOWN, std::string(1, src[pos++]), line, col++);
 }
@@ -392,9 +495,6 @@ std::vector<Token> Lexer::tokenize() {
 
 /*
 TODO:
-- Handle separators after number literal
 - Add unicode support to string literals?
-- Handle isolated `* /`
-- Check operator and separator
 - Handle incorrect position pointing in error logs with tabs
 */

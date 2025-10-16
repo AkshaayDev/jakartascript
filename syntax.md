@@ -82,3 +82,21 @@ Escape sequences:
 - `v`: Vertical Tab
 - `\nnn`: Octal value up to 3 octal digits (0-7)
 - `\xnn`: Hexadecimal value with at least 1 digit that terminates at the first non-digit where digits are 0-9/a-f/A-F
+
+## Operators
+
+Assign: `=`
+Arithmetic: `+`, `-`, `*`, `/`, `%`, `**`
+Arithmetic Assign: `+=`, `-=`, `*=`, `/=`, `%=`, `**=`, `++`, `--`
+Bitwise: `&`, `|`, `^`, `~`, `<<`, `>>`
+Bitwise Assign: `&=`, `|=`, `^=`, `<<=`, `>>=`
+Logic: `&&`, `||`, `^^`, `!`
+Logic Assign: `&&=`, `||=`, `^^=`
+Comparison: `==`, `!=`, `<`, `>`, `<=`, `>=`
+Terminator: `;`
+Property: `.`
+
+## Separators
+
+Brackets: `(`, `)`, `{`, `}`, `[`, `]`
+Separator: `,`
