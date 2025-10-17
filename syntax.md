@@ -1,6 +1,8 @@
 # JKS Syntax
 
-## Keywords
+## Lexing
+
+### Keywords
 
 Data Types: `bool`, `int`, `string`
 
@@ -8,12 +10,12 @@ Control Flow: `if`, `else`, `for`, `while`, `continue`, `break`
 
 Constants: `true`, `false`
 
-## Identifiers
+### Identifiers
 
 Identifers can start with any letter (a-z/A-Z) or an underscore (`_`).
 Any other character in the identifier can be alphanumeric (1-9/a-z/A-Z) or an underscore.
 
-## Comments
+### Comments
 
 Single Line Comments:
 All text after `//` until the end of that same line is ignored by the interpreter.
@@ -22,7 +24,7 @@ Multi Line Comments:
 All text between `/*` and `*/` are ignored by the interpreter.
 Nested multi line comments are not supported and a comment will end as soon as `*/` is encountered.
 
-## Number Literals
+### Number Literals
 
 Prefixes:
 
@@ -65,9 +67,10 @@ Example:
 - `91''2` is invalid (two adjacent `'`)
 - `342'e4` is invalid (`'` adjacent to non-digit)
 
-## String Literals
+### String Literals
 
 String literals are text enclosed with `"`. String literals must be opened and closed in the same line. Placing a backslash (`\`) before a character creates an **escape sequence**.
+
 Escape sequences:
 
 - `\'`: Single quote (optional)
@@ -83,20 +86,64 @@ Escape sequences:
 - `\nnn`: Octal value up to 3 octal digits (0-7)
 - `\xnn`: Hexadecimal value with at least 1 digit that terminates at the first non-digit where digits are 0-9/a-f/A-F
 
-## Operators
+### Operators
 
 Assign: `=`
+
 Arithmetic: `+`, `-`, `*`, `/`, `%`, `**`
+
 Arithmetic Assign: `+=`, `-=`, `*=`, `/=`, `%=`, `**=`, `++`, `--`
+
 Bitwise: `&`, `|`, `^`, `~`, `<<`, `>>`
+
 Bitwise Assign: `&=`, `|=`, `^=`, `<<=`, `>>=`
+
 Logic: `&&`, `||`, `^^`, `!`
+
 Logic Assign: `&&=`, `||=`, `^^=`
+
 Comparison: `==`, `!=`, `<`, `>`, `<=`, `>=`
+
 Terminator: `;`
+
 Property: `.`
 
-## Separators
+### Separators
 
 Brackets: `(`, `)`, `{`, `}`, `[`, `]`
+
 Separator: `,`
+
+## Parsing
+
+### Formats
+
+#### Statements
+
+Declaration: `type id;`
+
+Definition: `id = val;`
+
+Declaration+Definition: `type id = val;`
+
+If: `if (cond) {then} [else if (cond) {then}] [else {elseBranch}]`
+
+For: `for (init; cond; update) {loop}`
+
+While: `while (cond) {loop}`
+
+Continue: `continue`
+
+Break: `break`
+
+#### Expressions
+
+Literals: Boolean literals(`true`/`false`), String literals, Number literals
+
+Identifiers: `id`
+
+Binary: `left` `op` `right`
+
+Unary: `op` `expr`
+
+Group: `(expr)`

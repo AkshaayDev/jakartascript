@@ -108,6 +108,7 @@ std::unordered_map<std::string, TokenType> symbolMap = {
 	{ "{", TokenType::LBRACE }, { "}", TokenType::RBRACE },
 	{ ",", TokenType::COMMA },
 };
+
 std::unordered_set<char> validSymbolStarters;
 void initialiseSymbolStarters() {
 	for (const auto& symbol : symbolMap) {
@@ -125,22 +126,21 @@ struct Token {
 		: type(type), value(value), line(line), col(col) {}
 };
 
-struct SyntaxError {
+struct LexerError {
 	std::string message;
 	int line;
 	int col;
-	SyntaxError(std::string message, int line, int col)
+	LexerError(std::string message, int line, int col)
 		: message(message), line(line), col(col) {}
 };
 
 class Lexer {
 public:
-	Lexer(const std::string& filename, const std::string& source) : filename(filename), src(source), pos(0), line(1), col(1) {
+	Lexer(const std::string& source) : src(source), pos(0), line(1), col(1) {
 		if (validSymbolStarters.empty()) {
 			initialiseSymbolStarters();
 		}
 	}
-	void logErrors();
 	inline char peek(int);
 	void skip();
 	Token getKeywordOrIdentifier();
@@ -148,34 +148,13 @@ public:
 	Token getString();
 	Token nextToken();
 	std::vector<Token> tokenize();
+	std::vector<LexerError> lexerErrors;
 private:
-	std::string filename;
 	std::string src;
 	int pos;
 	int line;
 	int col;
-	std::vector<std::string> lines;
-	std::vector<SyntaxError> syntaxErrors;
 };
-
-void Lexer::logErrors() {
-	if (lines.empty()) {
-		std::stringstream ss(src);
-		std::string line;
-		while (std::getline(ss, line)) {
-			lines.push_back(line);
-		}
-	}
-	for (auto& error : syntaxErrors) {
-		std::cout << filename << ':' << error.line << ':' << error.col << ": ";
-		std::cout << "\033[1;31mSyntaxError:\033[0m " << error.message << '\n';
-		std::cout << error.line << "|" << lines[error.line - 1] << "\n";
-		std::cout << std::string(std::ceil(std::log10(error.line + 0.1)) + error.col, ' ') << "^\n";
-	}
-	if (!syntaxErrors.empty()) {
-		std::cout << syntaxErrors.size() << " errors generated.\n";
-	}
-}
 
 inline char Lexer::peek(int position) {
 	if (position >= src.size() || position < 0) return '\0';
@@ -238,7 +217,7 @@ void Lexer::skip() {
 						line++;
 						col = 1;
 					}
-					syntaxErrors.push_back(SyntaxError("Unmatched '/*' found", startLine, startCol));
+					lexerErrors.push_back(LexerError("Unmatched '/*' found", startLine, startCol));
 					pos = src.size();
 					return; // Return EOF in nextToken()
 				}
@@ -303,7 +282,7 @@ Token Lexer::getNumber() {
 		}
 	}
 	if (base != 10 && !isDigitBased(peek(pos), base)) {
-		syntaxErrors.push_back(SyntaxError("Expected non-decimal literal", line, col));
+		lexerErrors.push_back(LexerError("Expected non-decimal literal", line, col));
 	}
 	bool hasDot = false;
 	bool scientific = false;
@@ -312,19 +291,19 @@ Token Lexer::getNumber() {
 		if (c == '.') {
 			// Decimal point
 			if (base != 10) {
-				syntaxErrors.push_back(SyntaxError("Non-decimal literal found with a decimal point", line, col));
+				lexerErrors.push_back(LexerError("Non-decimal literal found with a decimal point", line, col));
 				break;
 			}
 			if (hasDot) {
-				syntaxErrors.push_back(SyntaxError("Number literal with two decimal points found", line, col));
+				lexerErrors.push_back(LexerError("Number literal with two decimal points found", line, col));
 				break;
 			}
 			if (scientific) {
-				syntaxErrors.push_back(SyntaxError("Non-integer scientific index of number literal found", line, col));
+				lexerErrors.push_back(LexerError("Non-integer scientific index of number literal found", line, col));
 				break;
 			}
 			if (!isDigitBased(peek(pos + 1), base)) {
-				syntaxErrors.push_back(SyntaxError("Expected decimal part of number literal", line, col));
+				lexerErrors.push_back(LexerError("Expected decimal part of number literal", line, col));
 				break;
 			}
 			hasDot = true;
@@ -333,7 +312,7 @@ Token Lexer::getNumber() {
 			if (!isdigit(peek(pos + 1))) {
 				// If the next character is not a digit, it has to be +/- followed by a digit
 				if ((peek(pos + 1) != '+' && peek(pos + 1) != '-') || !isdigit(peek(pos + 2))) {
-					syntaxErrors.push_back(SyntaxError("Expected scientific index of decimal number literal", line, col));
+					lexerErrors.push_back(LexerError("Expected scientific index of decimal number literal", line, col));
 					break;
 				}
 			}
@@ -351,7 +330,7 @@ Token Lexer::getNumber() {
 		} else if (!isDigitBased(c, base)) {
 			// An invalid digit was found, end token here
 			if (!isspace(c) && !validSymbolStarters.count(c)) {
-				syntaxErrors.push_back(SyntaxError("Invalid digit found in number literal ('" + std::string(1, c) + "')", line, col));
+				lexerErrors.push_back(LexerError("Invalid digit found in number literal ('" + std::string(1, c) + "')", line, col));
 			}
 			break;
 		}
@@ -390,7 +369,7 @@ Token Lexer::getString() {
 				case 'v': val += '\v'; break;
 				case 'x': { // `\xnn`: Hexadecimal
 					if (!isDigitBased(peek(pos), 16)) {
-						syntaxErrors.push_back(SyntaxError("Expected hexadecimal value after hexadecimal escape sequence", line, col));
+						lexerErrors.push_back(LexerError("Expected hexadecimal value after hexadecimal escape sequence", line, col));
 						break; // Eat this character in the outer loop
 					}
 					pos++;
@@ -413,7 +392,7 @@ Token Lexer::getString() {
 						pos--; col--; // The last character will be eaten in the outer loop
 						break;
 					}
-					syntaxErrors.push_back(SyntaxError("Unknown escape sequence found inside string literal ('\\" + std::string(1, c) + "')", line, col));
+					lexerErrors.push_back(LexerError("Unknown escape sequence found inside string literal ('\\" + std::string(1, c) + "')", line, col));
 					val += c;
 					break;
 			}
@@ -431,7 +410,7 @@ Token Lexer::getString() {
 		col++;
 	}
 	// If this code is reached, the string is unclosed in the same line
-	syntaxErrors.push_back(SyntaxError("Unclosed string literal found", startLine, startCol));
+	lexerErrors.push_back(LexerError("Unclosed string literal found", startLine, startCol));
 	return Token(TokenType::STRING, val, startLine, startCol);
 }
 
@@ -457,7 +436,7 @@ Token Lexer::nextToken() {
 	}
 	// Handle unopened `*/`
 	if (c == '*' && peek(pos + 1) == '/') {
-		syntaxErrors.push_back(SyntaxError("Unmatched '*/' found", line, col));
+		lexerErrors.push_back(LexerError("Unmatched '*/' found", line, col));
 		Token t = Token(TokenType::UNKNOWN, src.substr(pos, 2), line, col);
 		pos += 2;
 		col += 2;
@@ -477,7 +456,7 @@ Token Lexer::nextToken() {
 		}
 	}
 	// Unknown token
-	syntaxErrors.push_back(SyntaxError("Unknown token found", line, col));
+	lexerErrors.push_back(LexerError("Unknown token found", line, col));
 	return Token(TokenType::UNKNOWN, std::string(1, src[pos++]), line, col++);
 }
 
